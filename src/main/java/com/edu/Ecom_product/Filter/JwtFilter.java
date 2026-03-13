@@ -2,6 +2,7 @@ package com.edu.Ecom_product.Filter;
 
 import com.edu.Ecom_product.Service.JWTService;
 import com.edu.Ecom_product.Service.MyUserDetailsService;
+import com.edu.Ecom_product.Service.TokenBlacklistService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.Cookie;
@@ -10,7 +11,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContext;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -27,6 +27,9 @@ public class JwtFilter extends OncePerRequestFilter {
 
     @Autowired
     private ApplicationContext context;
+
+    @Autowired
+    private TokenBlacklistService blacklistService;
 
     private static final String COOKIE_NAME = "JWT_TOKEN";
 
@@ -55,9 +58,15 @@ public class JwtFilter extends OncePerRequestFilter {
 
         if (token != null) {
             try {
-                userName = jwtService.extractUsername(token);
+                // if token blacklisted, skip parsing and ensure no authentication
+                if (blacklistService.isBlacklisted(token)) {
+                    // don't authenticate
+                } else {
+                    userName = jwtService.extractUsername(token);
+                }
             } catch (Exception ex) {
                 // invalid token or parsing problem - don't stop the filter chain
+                System.err.println("JWT parsing error: " + ex.getMessage());
             }
         }
 
@@ -70,6 +79,7 @@ public class JwtFilter extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authenticationToken);
                 }
             } catch (Exception ex) {
+                System.err.println("JWT validation error: " + ex.getMessage());
             }
         }
 
